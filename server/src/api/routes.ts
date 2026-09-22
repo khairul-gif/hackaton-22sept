@@ -1,11 +1,16 @@
 import { Router } from "express";
+import type { Mailer } from "../email/mailer.js";
 import type { LockerBank } from "../domain/lockerBank.js";
 import { isSize } from "../domain/size.js";
 import type { TicketType } from "../domain/ticketType.js";
 import { TICKET_TYPE_INFO, TICKET_TYPES } from "../domain/ticketType.js";
 import { ZONES } from "../domain/zone.js";
 
-export function createLockerRoutes(bank: LockerBank): Router {
+function isValidEmail(value: unknown): value is string {
+  return typeof value === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+export function createLockerRoutes(bank: LockerBank, mailer?: Mailer): Router {
   const router = Router();
 
   router.post("/lockers", (req, res) => {
@@ -51,7 +56,12 @@ export function createLockerRoutes(bank: LockerBank): Router {
       return;
     }
 
-    const ticket = bank.purchaseTicket(quantities);
+    if (body.email !== undefined && !isValidEmail(body.email)) {
+      res.status(400).json({ error: "email must be a valid email address" });
+      return;
+    }
+
+    const ticket = bank.purchaseTicket(quantities, body.email);
     res.status(201).json(ticket);
   });
 
@@ -86,9 +96,33 @@ export function createLockerRoutes(bank: LockerBank): Router {
     const result = await bank.storePackage(size, ticketId);
 
     switch (result.status) {
-      case "stored":
-        res.status(201).json({ lockerId: result.lockerId, pickupCode: result.pickupCode });
+      case "stored": {
+        const demoLocker = await bank.ensureDemoLocker();
+
+        const summary = bank.getTicketSummary(ticketId);
+        if (mailer && summary?.ticket.email) {
+          const zone = ZONES.find((z) => z.size === size);
+          mailer
+            .sendReceipt({
+              to: summary.ticket.email,
+              ticketId,
+              lineItems: summary.ticket.lineItems,
+              entryPrice: summary.ticket.entryPrice,
+              lockerId: result.lockerId,
+              pickupCode: result.pickupCode,
+              zoneLabel: zone?.label ?? size,
+              ratePerDay: zone?.ratePerDay ?? 0,
+            })
+            // Email is a side channel, not the transaction itself -- a failed
+            // send should never fail an otherwise-successful rental.
+            .catch((err) => {
+              console.error("Failed to send receipt email:", err instanceof Error ? err.message : err);
+            });
+        }
+
+        res.status(201).json({ lockerId: result.lockerId, pickupCode: result.pickupCode, demoLocker });
         return;
+      }
       case "no_locker_available":
         res.status(422).json({ error: "No suitable locker is available for this zone." });
         return;

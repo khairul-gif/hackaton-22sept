@@ -11,6 +11,20 @@ npm install
 npm run dev      # starts on http://localhost:3000 (PORT env var to override)
 ```
 
+On startup, the server seeds 5 lockers per zone (SMALL/MEDIUM/LARGE — 15
+total) into its in-memory store, so there's stock to rent without an
+operator adding lockers by hand first. `POST /lockers` still exists for
+adding more on top of the seed.
+
+### Receipt emails (optional)
+
+Copy `.env.example` to `.env` and set `SMTP_HOST` / `SMTP_USER` / `SMTP_PASS`
+(and `SMTP_FROM`, a verified sender identity for your SMTP provider) to send
+a receipt email whenever a locker rental succeeds for a ticket that has an
+email address on it. Without these set, the server runs normally with
+emails disabled — nothing fails, `POST /tickets` just ignores the `email`
+field. `.env` is gitignored; never commit real credentials.
+
 ## Testing
 
 ```bash
@@ -41,9 +55,9 @@ the PIN later to reopen the locker; the storage fee is billed to the ticket).
 | GET    | `/lockers`           | —                                         | 200 `LockerView[]`                                                                     | includes `pickupCode`/`storedAt` while occupied, `lastRetrievedAt` if previously used |
 | GET    | `/zones`             | —                                         | 200 `[{ size, label, ratePerDay }]`                                                    | one entry per locker size, e.g. "Zone A" = SMALL                                     |
 | GET    | `/ticket-types`      | —                                         | 200 `[{ type, label, price }]`                                                         | `type` is `ADULT`\|`CHILD`\|`OKU`                                                     |
-| POST   | `/tickets`           | `{ ADULT?, CHILD?, OKU? }` (quantities)   | 201 `{ id, lineItems, entryPrice, purchasedAt }`                                       | simulated payment, always succeeds; 400 if all quantities are 0/missing               |
+| POST   | `/tickets`           | `{ ADULT?, CHILD?, OKU?, email? }`        | 201 `{ id, lineItems, entryPrice, purchasedAt, email? }`                               | simulated payment, always succeeds; 400 if all quantities are 0/missing or email is invalid |
 | GET    | `/tickets/:ticketId` | —                                         | 200 `{ id, lineItems, entryPrice, purchasedAt, lockerCharges, total }`                 | 404 unknown ticket                                                                    |
-| POST   | `/locker-rentals`    | `{ ticketId, size }`                      | 201 `{ lockerId, pickupCode }`                                                         | pickupCode is the locker PIN; 404 unknown ticket, 422 if no locker fits/is free       |
+| POST   | `/locker-rentals`    | `{ ticketId, size }`                      | 201 `{ lockerId, pickupCode, demoLocker }`                                             | pickupCode is the locker PIN; 404 unknown ticket, 422 if no locker fits/is free; sends a receipt email if the ticket has one and SMTP is configured |
 | POST   | `/pickups`           | `{ lockerId, pickupCode }`                | 200 `{ lockerId, packageId, size, daysStored, feeCharged, ticketId, ticketTotal }`     | 404 unknown locker / empty locker, 400 wrong PIN; fee is billed to the ticket         |
 
 ### Demoing Level 3 live (no waiting real days)

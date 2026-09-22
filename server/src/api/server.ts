@@ -1,5 +1,6 @@
 import express from "express";
 import type { ErrorRequestHandler } from "express";
+import type { Mailer } from "../email/mailer.js";
 import type { ManualClock } from "../domain/manualClock.js";
 import type { LockerBank } from "../domain/lockerBank.js";
 import { createDevRoutes } from "./devRoutes.js";
@@ -16,6 +17,8 @@ const handleJsonErrors: ErrorRequestHandler = (err, _req, res, next) => {
 export interface CreateServerOptions {
   /** When set, mounts dev-only /dev/clock routes for fast-forwarding time. Omit in normal use. */
   devClock?: ManualClock;
+  /** When set, sends a receipt email after a locker rental if the ticket has an email. Omit to disable. */
+  mailer?: Mailer;
 }
 
 export function createServer(bank: LockerBank, options: CreateServerOptions = {}) {
@@ -26,7 +29,7 @@ export function createServer(bank: LockerBank, options: CreateServerOptions = {}
     res.json({ status: "ok" });
   });
 
-  app.use(createLockerRoutes(bank));
+  app.use(createLockerRoutes(bank, options.mailer));
 
   if (options.devClock) {
     app.use(createDevRoutes(options.devClock));

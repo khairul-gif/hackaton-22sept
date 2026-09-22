@@ -1,7 +1,7 @@
 import type { Locker, LockerView } from "../domain/locker.js";
 import type { Package } from "../domain/package.js";
 import type { Size } from "../domain/size.js";
-import { compareSize, fits } from "../domain/size.js";
+import { fits } from "../domain/size.js";
 import type { Ticket } from "../domain/ticket.js";
 
 /**
@@ -13,7 +13,7 @@ export interface LockerRepository {
   createLocker(id: string, size: Size): Locker;
   getLocker(id: string): Locker | undefined;
   listLockers(): LockerView[];
-  /** Unoccupied lockers that can hold `size`, smallest first. */
+  /** Unoccupied lockers in the given zone/size. */
   findAvailableLockers(size: Size): Locker[];
   assign(lockerId: string, pkg: Package): void;
   getActivePackage(lockerId: string): Package | undefined;
@@ -60,9 +60,7 @@ export class InMemoryLockerRepository implements LockerRepository {
   }
 
   findAvailableLockers(size: Size): Locker[] {
-    return [...this.lockers.values()]
-      .filter((locker) => !this.occupancy.has(locker.id) && fits(size, locker.size))
-      .sort((a, b) => compareSize(a.size, b.size));
+    return [...this.lockers.values()].filter((locker) => !this.occupancy.has(locker.id) && fits(size, locker.size));
   }
 
   assign(lockerId: string, pkg: Package): void {

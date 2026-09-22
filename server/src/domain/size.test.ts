@@ -1,24 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { compareSize, fits, isSize } from "./size.js";
+import { fits, isSize } from "./size.js";
 
 describe("fits", () => {
-  it("allows a package to fit a locker of the same size", () => {
+  it("allows a package to go in a locker of the same zone/size", () => {
     expect(fits("MEDIUM", "MEDIUM")).toBe(true);
   });
 
-  it("allows a package to fit a larger locker", () => {
-    expect(fits("SMALL", "LARGE")).toBe(true);
+  it("rejects a locker in a different zone, even a larger one", () => {
+    expect(fits("SMALL", "LARGE")).toBe(false);
   });
 
-  it("rejects a package larger than the locker", () => {
+  it("rejects a locker in a different zone, even a smaller one", () => {
     expect(fits("LARGE", "SMALL")).toBe(false);
-  });
-});
-
-describe("compareSize", () => {
-  it("sorts sizes ascending", () => {
-    const sizes = ["LARGE", "SMALL", "MEDIUM"] as const;
-    expect([...sizes].sort(compareSize)).toEqual(["SMALL", "MEDIUM", "LARGE"]);
   });
 });
 

@@ -60,25 +60,16 @@ describe("LockerBank", () => {
       expect(result).toEqual({ status: "ticket_not_found" });
     });
 
-    it("assigns the smallest available locker that fits the package", async () => {
+    it("assigns an available locker in the requested zone", async () => {
       bank.createLocker("LARGE");
       const medium = bank.createLocker("MEDIUM");
-      bank.createLocker("SMALL"); // too small, should be skipped
 
       const result = await bank.storePackage("MEDIUM", ticketId);
 
       expect(result).toMatchObject({ status: "stored", lockerId: medium.id });
     });
 
-    it("falls back to a larger locker when no exact-size locker is available", async () => {
-      const large = bank.createLocker("LARGE");
-
-      const result = await bank.storePackage("SMALL", ticketId);
-
-      expect(result).toMatchObject({ status: "stored", lockerId: large.id });
-    });
-
-    it("returns no_locker_available when no locker is big enough", async () => {
+    it("returns no_locker_available when no locker exists in that zone, even if other zones have space", async () => {
       bank.createLocker("SMALL");
       bank.createLocker("MEDIUM");
 
@@ -249,6 +240,47 @@ describe("LockerBank", () => {
       const summary = bank.getTicketSummary(ticketId)!;
       expect(summary.lockerCharges).toBeGreaterThan(0);
       expect(summary.total).toBe(summary.ticket.entryPrice + summary.lockerCharges);
+    });
+  });
+
+  describe("ensureDemoLocker", () => {
+    it("occupies one locker with a PIN when none exists yet", async () => {
+      bank.createLocker("SMALL");
+      bank.createLocker("MEDIUM");
+
+      const demo = await bank.ensureDemoLocker();
+
+      expect(demo).not.toBeNull();
+      expect(demo!.pickupCode).toMatch(/^[A-Z0-9]{6}$/);
+      const view = bank.listLockers().find((l) => l.id === demo!.lockerId);
+      expect(view?.available).toBe(false);
+    });
+
+    it("reuses the same demo locker on repeated calls", async () => {
+      bank.createLocker("SMALL");
+
+      const first = await bank.ensureDemoLocker();
+      const second = await bank.ensureDemoLocker();
+
+      expect(second).toEqual(first);
+    });
+
+    it("returns null when no locker is available anywhere", async () => {
+      const demo = await bank.ensureDemoLocker();
+      expect(demo).toBeNull();
+    });
+
+    it("seeds a fresh demo locker once the previous one is retrieved", async () => {
+      bank.createLocker("SMALL");
+
+      const first = await bank.ensureDemoLocker();
+      await bank.retrievePackage(first!.lockerId, first!.pickupCode);
+
+      const second = await bank.ensureDemoLocker();
+
+      expect(second).not.toBeNull();
+      expect(second!.lockerId).toBe(first!.lockerId);
+      expect(second!.pickupCode).not.toBe(first!.pickupCode);
     });
   });
 });

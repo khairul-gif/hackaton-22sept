@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import request from "supertest";
 import type { Express } from "express";
 import { createServer } from "./server.js";
@@ -181,15 +181,26 @@ describe("locker, ticket and locker-rental routes", () => {
   });
 
   describe("POST /locker-rentals", () => {
-    it("stores a package in the smallest available locker and returns a pickup code", async () => {
+    it("stores a package in an available locker in the requested zone and returns a pickup code", async () => {
       const lockerRes = await request(app).post("/lockers").send({ size: "MEDIUM" });
       const ticketId = await buyTicket();
 
-      const res = await request(app).post("/locker-rentals").send({ size: "SMALL", ticketId });
+      const res = await request(app).post("/locker-rentals").send({ size: "MEDIUM", ticketId });
 
       expect(res.status).toBe(201);
       expect(res.body.lockerId).toBe(lockerRes.body.id);
       expect(res.body.pickupCode).toMatch(/^[A-Z0-9]{6}$/);
+    });
+
+    it("also occupies a demo locker with its own PIN, for trying pickup without a real checkout", async () => {
+      await request(app).post("/lockers").send({ size: "SMALL" });
+      await request(app).post("/lockers").send({ size: "MEDIUM" });
+      const ticketId = await buyTicket();
+
+      const res = await request(app).post("/locker-rentals").send({ size: "SMALL", ticketId });
+
+      expect(res.body.demoLocker.lockerId).not.toBe(res.body.lockerId);
+      expect(res.body.demoLocker.pickupCode).toMatch(/^[A-Z0-9]{6}$/);
     });
 
     it("rejects an invalid zone size", async () => {
@@ -346,5 +357,65 @@ describe("storage fee (Level 3)", () => {
     expect(res.body.daysStored).toBe(6);
     // 5 days @ 10 + 1 day @ 20
     expect(res.body.feeCharged).toBe(70);
+  });
+});
+
+describe("receipt emails", () => {
+  function buildAppWithMailer() {
+    const bank = new LockerBank({ repository: new InMemoryLockerRepository() });
+    const mailer = { sendReceipt: vi.fn().mockResolvedValue(undefined) };
+    const app = createServer(bank, { mailer });
+    return { app, mailer };
+  }
+
+  it("sends a receipt when the ticket has an email", async () => {
+    const { app, mailer } = buildAppWithMailer();
+    await request(app).post("/lockers").send({ size: "SMALL" });
+    const ticketRes = await request(app).post("/tickets").send({ ADULT: 1, email: "visitor@example.com" });
+
+    const rentalRes = await request(app)
+      .post("/locker-rentals")
+      .send({ size: "SMALL", ticketId: ticketRes.body.id });
+
+    expect(rentalRes.status).toBe(201);
+    expect(mailer.sendReceipt).toHaveBeenCalledTimes(1);
+    expect(mailer.sendReceipt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "visitor@example.com",
+        ticketId: ticketRes.body.id,
+        lockerId: rentalRes.body.lockerId,
+        pickupCode: rentalRes.body.pickupCode,
+      }),
+    );
+  });
+
+  it("does not send an email when the ticket has none", async () => {
+    const { app, mailer } = buildAppWithMailer();
+    await request(app).post("/lockers").send({ size: "SMALL" });
+    const ticketRes = await request(app).post("/tickets").send({ ADULT: 1 });
+
+    await request(app).post("/locker-rentals").send({ size: "SMALL", ticketId: ticketRes.body.id });
+
+    expect(mailer.sendReceipt).not.toHaveBeenCalled();
+  });
+
+  it("rejects an invalid email on ticket purchase", async () => {
+    const { app } = buildAppWithMailer();
+    const res = await request(app).post("/tickets").send({ ADULT: 1, email: "not-an-email" });
+    expect(res.status).toBe(400);
+  });
+
+  it("still returns 201 for the rental even if sending the email fails", async () => {
+    const bank = new LockerBank({ repository: new InMemoryLockerRepository() });
+    const mailer = { sendReceipt: vi.fn().mockRejectedValue(new Error("smtp down")) };
+    const app = createServer(bank, { mailer });
+    await request(app).post("/lockers").send({ size: "SMALL" });
+    const ticketRes = await request(app).post("/tickets").send({ ADULT: 1, email: "visitor@example.com" });
+
+    const rentalRes = await request(app)
+      .post("/locker-rentals")
+      .send({ size: "SMALL", ticketId: ticketRes.body.id });
+
+    expect(rentalRes.status).toBe(201);
   });
 });

@@ -9,17 +9,18 @@ describe("InMemoryLockerRepository", () => {
   });
 
   describe("findAvailableLockers", () => {
-    it("excludes lockers too small for the package", () => {
+    it("excludes lockers in a different zone", () => {
       repo.createLocker("s1", "SMALL");
       const found = repo.findAvailableLockers("LARGE");
       expect(found).toEqual([]);
     });
 
-    it("sorts matching lockers smallest first", () => {
+    it("returns only lockers in the requested zone", () => {
       repo.createLocker("l1", "LARGE");
-      repo.createLocker("m1", "MEDIUM");
+      repo.createLocker("s1", "SMALL");
+      repo.createLocker("s2", "SMALL");
       const found = repo.findAvailableLockers("SMALL");
-      expect(found.map((l) => l.id)).toEqual(["m1", "l1"]);
+      expect(found.map((l) => l.id).sort()).toEqual(["s1", "s2"]);
     });
 
     it("excludes occupied lockers", () => {

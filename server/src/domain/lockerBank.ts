@@ -7,7 +7,7 @@ import type { Package } from "./package.js";
 import { generatePickupCode } from "./pickupCode.js";
 import type { PricingTable } from "./pricing.js";
 import { DEFAULT_PRICING, billedDays, calculateStorageFee } from "./pricing.js";
-import type { Size } from "./size.js";
+import { SIZES, type Size } from "./size.js";
 import type { Ticket, TicketLineItem, TicketSummary } from "./ticket.js";
 import type { TicketType } from "./ticketType.js";
 import { DEFAULT_TICKET_PRICING, TICKET_TYPES } from "./ticketType.js";
@@ -23,6 +23,11 @@ export type RetrieveResult =
   | { status: "locker_not_found" }
   | { status: "locker_empty" }
   | { status: "invalid_code" };
+
+export interface DemoLocker {
+  lockerId: string;
+  pickupCode: string;
+}
 
 export interface LockerBankOptions {
   repository: LockerRepository;
@@ -53,6 +58,12 @@ export class LockerBank {
   private readonly ticketPricing: Record<TicketType, number>;
   private readonly allocationLock = new Mutex();
 
+  // Demo convenience only (see ensureDemoLocker): tracks the one locker kept
+  // pre-occupied with a known PIN so "reopen locker" can be tried without
+  // running through checkout first. Not part of the real business model.
+  private demoTicketId: string | null = null;
+  private demoLocker: DemoLocker | null = null;
+
   constructor(options: LockerBankOptions) {
     this.repository = options.repository;
     this.clock = options.clock ?? { now: () => new Date() };
@@ -73,7 +84,7 @@ export class LockerBank {
   }
 
   /** Simulated payment: always succeeds and issues a fresh ticket. */
-  purchaseTicket(quantities: Record<TicketType, number>): Ticket {
+  purchaseTicket(quantities: Record<TicketType, number>, email?: string): Ticket {
     const lineItems: TicketLineItem[] = TICKET_TYPES.filter((type) => quantities[type] > 0).map((type) => ({
       type,
       quantity: quantities[type],
@@ -86,6 +97,7 @@ export class LockerBank {
       lineItems,
       entryPrice,
       purchasedAt: this.clock.now(),
+      ...(email ? { email } : {}),
     });
   }
 
@@ -150,7 +162,44 @@ export class LockerBank {
     this.repository.chargeTicket(pkg.ticketId, feeCharged);
     const ticketTotal = this.getTicketSummary(pkg.ticketId)?.total ?? feeCharged;
 
+    if (this.demoLocker?.lockerId === lockerId) {
+      // Freed by someone trying the demo PIN — the next rental will seed a new one.
+      this.demoLocker = null;
+    }
+
     return { status: "retrieved", package: pkg, daysStored, feeCharged, ticketTotal };
+  }
+
+  /**
+   * Demo convenience, not a real product feature: after a genuine rental
+   * succeeds, make sure one other locker is already occupied with a known
+   * PIN, so the "reopen locker" flow can be tried immediately without
+   * running through ticket purchase + checkout again. Idempotent — reuses
+   * the existing demo locker if one is already occupied.
+   */
+  async ensureDemoLocker(): Promise<DemoLocker | null> {
+    if (this.demoLocker) {
+      return this.demoLocker;
+    }
+
+    if (!this.demoTicketId) {
+      this.demoTicketId = this.repository.createTicket({
+        id: this.generateTicketId(),
+        lineItems: [],
+        entryPrice: 0,
+        purchasedAt: this.clock.now(),
+      }).id;
+    }
+
+    for (const size of SIZES) {
+      const result = await this.storePackage(size, this.demoTicketId);
+      if (result.status === "stored") {
+        this.demoLocker = { lockerId: result.lockerId, pickupCode: result.pickupCode };
+        return this.demoLocker;
+      }
+    }
+
+    return null;
   }
 
   private generateUniquePickupCode(): string {

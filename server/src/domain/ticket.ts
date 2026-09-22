@@ -17,6 +17,8 @@ export interface Ticket {
   lineItems: TicketLineItem[];
   entryPrice: number;
   purchasedAt: Date;
+  /** Optional -- when given, a receipt email is sent once a locker is rented against this ticket. */
+  email?: string;
 }
 
 export interface TicketSummary {
