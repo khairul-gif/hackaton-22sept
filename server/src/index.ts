@@ -19,6 +19,9 @@ const bank = new LockerBank({
   // and type when demoing the store/retrieve flow by hand. Package ids stay
   // random UUIDs since they're never user-facing.
   lockerIdGenerator: createFriendlyIdGenerator("L"),
+  // Ticket ids are shown to the visitor (as a wristband/QR code stand-in),
+  // so keep them short and readable too.
+  ticketIdGenerator: createFriendlyIdGenerator("T"),
 });
 
 const app = createServer(bank, clock ? { devClock: clock } : {});

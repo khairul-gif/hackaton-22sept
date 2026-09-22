@@ -5,17 +5,21 @@ import type { LockerView } from "./locker.js";
 import { Mutex } from "./mutex.js";
 import type { Package } from "./package.js";
 import { generatePickupCode } from "./pickupCode.js";
-import type { PricingConfig } from "./pricing.js";
+import type { PricingTable } from "./pricing.js";
 import { DEFAULT_PRICING, billedDays, calculateStorageFee } from "./pricing.js";
 import type { Size } from "./size.js";
+import type { Ticket, TicketLineItem, TicketSummary } from "./ticket.js";
+import type { TicketType } from "./ticketType.js";
+import { DEFAULT_TICKET_PRICING, TICKET_TYPES } from "./ticketType.js";
 import type { LockerRepository } from "../repository/lockerRepository.js";
 
 export type StoreResult =
   | { status: "stored"; lockerId: string; pickupCode: string }
-  | { status: "no_locker_available" };
+  | { status: "no_locker_available" }
+  | { status: "ticket_not_found" };
 
 export type RetrieveResult =
-  | { status: "retrieved"; package: Package; daysStored: number; feeCharged: number }
+  | { status: "retrieved"; package: Package; daysStored: number; feeCharged: number; ticketTotal: number }
   | { status: "locker_not_found" }
   | { status: "locker_empty" }
   | { status: "invalid_code" };
@@ -27,7 +31,11 @@ export interface LockerBankOptions {
   lockerIdGenerator?: IdGenerator;
   /** Id generator for packages. Not user-facing, so random UUIDs are fine as-is. */
   packageIdGenerator?: IdGenerator;
-  pricing?: PricingConfig;
+  /** Id generator for tickets. Not user-facing (it's stored on a wristband/QR), random UUIDs are fine. */
+  ticketIdGenerator?: IdGenerator;
+  pricing?: PricingTable;
+  /** Per-ticket-type admission price. */
+  ticketPricing?: Record<TicketType, number>;
 }
 
 /**
@@ -40,7 +48,9 @@ export class LockerBank {
   private readonly clock: Clock;
   private readonly generateLockerId: IdGenerator;
   private readonly generatePackageId: IdGenerator;
-  private readonly pricing: PricingConfig;
+  private readonly generateTicketId: IdGenerator;
+  private readonly pricing: PricingTable;
+  private readonly ticketPricing: Record<TicketType, number>;
   private readonly allocationLock = new Mutex();
 
   constructor(options: LockerBankOptions) {
@@ -48,7 +58,9 @@ export class LockerBank {
     this.clock = options.clock ?? { now: () => new Date() };
     this.generateLockerId = options.lockerIdGenerator ?? randomId;
     this.generatePackageId = options.packageIdGenerator ?? randomId;
+    this.generateTicketId = options.ticketIdGenerator ?? randomId;
     this.pricing = options.pricing ?? DEFAULT_PRICING;
+    this.ticketPricing = options.ticketPricing ?? DEFAULT_TICKET_PRICING;
   }
 
   createLocker(size: Size): LockerView {
@@ -60,7 +72,37 @@ export class LockerBank {
     return this.repository.listLockers();
   }
 
-  async storePackage(size: Size): Promise<StoreResult> {
+  /** Simulated payment: always succeeds and issues a fresh ticket. */
+  purchaseTicket(quantities: Record<TicketType, number>): Ticket {
+    const lineItems: TicketLineItem[] = TICKET_TYPES.filter((type) => quantities[type] > 0).map((type) => ({
+      type,
+      quantity: quantities[type],
+      unitPrice: this.ticketPricing[type],
+    }));
+    const entryPrice = lineItems.reduce((sum, li) => sum + li.quantity * li.unitPrice, 0);
+
+    return this.repository.createTicket({
+      id: this.generateTicketId(),
+      lineItems,
+      entryPrice,
+      purchasedAt: this.clock.now(),
+    });
+  }
+
+  getTicketSummary(ticketId: string): TicketSummary | undefined {
+    const ticket = this.repository.getTicket(ticketId);
+    if (!ticket) {
+      return undefined;
+    }
+    const lockerCharges = this.repository.getTicketCharges(ticketId);
+    return { ticket, lockerCharges, total: ticket.entryPrice + lockerCharges };
+  }
+
+  async storePackage(size: Size, ticketId: string): Promise<StoreResult> {
+    if (!this.repository.getTicket(ticketId)) {
+      return { status: "ticket_not_found" };
+    }
+
     // Finding an available locker and assigning it must be atomic: with
     // concurrent requests racing for a limited pool of lockers, two calls
     // must never both see the same locker as available and both claim it.
@@ -78,6 +120,7 @@ export class LockerBank {
         lockerId: locker.id,
         pickupCode,
         storedAt: this.clock.now(),
+        ticketId,
       });
 
       return { status: "stored", lockerId: locker.id, pickupCode };
@@ -101,10 +144,13 @@ export class LockerBank {
 
     const retrievedAt = this.clock.now();
     const daysStored = billedDays(pkg.storedAt, retrievedAt);
-    const feeCharged = calculateStorageFee(daysStored, this.pricing);
+    const feeCharged = calculateStorageFee(daysStored, this.pricing[pkg.size]);
 
     this.repository.release(lockerId, retrievedAt);
-    return { status: "retrieved", package: pkg, daysStored, feeCharged };
+    this.repository.chargeTicket(pkg.ticketId, feeCharged);
+    const ticketTotal = this.getTicketSummary(pkg.ticketId)?.total ?? feeCharged;
+
+    return { status: "retrieved", package: pkg, daysStored, feeCharged, ticketTotal };
   }
 
   private generateUniquePickupCode(): string {

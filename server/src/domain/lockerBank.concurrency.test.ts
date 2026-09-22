@@ -6,6 +6,7 @@ describe("LockerBank concurrency (Level 4)", () => {
   it("assigns each locker to exactly one of many simultaneous requests", async () => {
     const repository = new InMemoryLockerRepository();
     const bank = new LockerBank({ repository });
+    const ticketId = bank.purchaseTicket({ ADULT: 1, CHILD: 0, OKU: 0 }).id;
 
     const lockerCount = 5;
     const requestCount = 20;
@@ -14,7 +15,7 @@ describe("LockerBank concurrency (Level 4)", () => {
     }
 
     const results: StoreResult[] = await Promise.all(
-      Array.from({ length: requestCount }, () => bank.storePackage("SMALL")),
+      Array.from({ length: requestCount }, () => bank.storePackage("SMALL", ticketId)),
     );
 
     const successes = results.filter((r) => r.status === "stored");
@@ -39,15 +40,23 @@ describe("LockerBank concurrency (Level 4)", () => {
   it("leaves lockers available again for a second wave after the first wave fills them", async () => {
     const repository = new InMemoryLockerRepository();
     const bank = new LockerBank({ repository });
+    const ticketId = bank.purchaseTicket({ ADULT: 1, CHILD: 0, OKU: 0 }).id;
 
     for (let i = 0; i < 3; i++) {
       bank.createLocker("SMALL");
     }
 
-    await Promise.all([bank.storePackage("SMALL"), bank.storePackage("SMALL"), bank.storePackage("SMALL")]);
+    await Promise.all([
+      bank.storePackage("SMALL", ticketId),
+      bank.storePackage("SMALL", ticketId),
+      bank.storePackage("SMALL", ticketId),
+    ]);
     expect(bank.listLockers().every((l) => !l.available)).toBe(true);
 
-    const secondWave = await Promise.all([bank.storePackage("SMALL"), bank.storePackage("SMALL")]);
+    const secondWave = await Promise.all([
+      bank.storePackage("SMALL", ticketId),
+      bank.storePackage("SMALL", ticketId),
+    ]);
     expect(secondWave.every((r) => r.status === "no_locker_available")).toBe(true);
   });
 });

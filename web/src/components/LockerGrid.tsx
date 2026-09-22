@@ -3,7 +3,8 @@ import type { LockerView, Size } from "../api";
 interface Props {
   lockers: LockerView[];
   loading: boolean;
-  onSelectLocker: (lockerId: string, pickupCode: string) => void;
+  /** Show each occupied locker's PIN/timestamps. Off on the visitor-facing /locker page. */
+  showOccupantDetails?: boolean;
 }
 
 const SIZE_ORDER: Size[] = ["SMALL", "MEDIUM", "LARGE"];
@@ -12,7 +13,7 @@ function formatTimestamp(iso: string): string {
   return new Date(iso).toLocaleString();
 }
 
-export function LockerGrid({ lockers, loading, onSelectLocker }: Props) {
+export function LockerGrid({ lockers, loading, showOccupantDetails = true }: Props) {
   const totalAvailable = lockers.filter((l) => l.available).length;
 
   return (
@@ -29,7 +30,7 @@ export function LockerGrid({ lockers, loading, onSelectLocker }: Props) {
       {loading && lockers.length === 0 ? (
         <p className="muted">Loading…</p>
       ) : lockers.length === 0 ? (
-        <p className="muted">No lockers yet. Create one to get started.</p>
+        <p className="muted">No lockers yet.</p>
       ) : (
         SIZE_ORDER.map((size) => {
           const group = lockers.filter((l) => l.size === size);
@@ -45,34 +46,25 @@ export function LockerGrid({ lockers, loading, onSelectLocker }: Props) {
                 </span>
               </div>
               <ul className="locker-grid">
-                {group.map((locker) => {
-                  const clickable = !locker.available && Boolean(locker.pickupCode);
-
-                  return (
-                    <li
-                      key={locker.id}
-                      className={`locker-tile ${locker.available ? "available" : "occupied"} ${clickable ? "clickable" : ""}`}
-                      onClick={clickable ? () => onSelectLocker(locker.id, locker.pickupCode!) : undefined}
-                      title={clickable ? "Click to fill the Customer panel" : undefined}
-                    >
-                      <span className="locker-id">{locker.id}</span>
-                      <span className="locker-status">{locker.available ? "Available" : "Occupied"}</span>
-                      {!locker.available && locker.pickupCode && (
-                        <span className="locker-pickup-code">
-                          Code: <strong>{locker.pickupCode}</strong>
-                        </span>
-                      )}
-                      {!locker.available && locker.storedAt && (
-                        <span className="locker-timestamp">Stored: {formatTimestamp(locker.storedAt)}</span>
-                      )}
-                      {locker.available && locker.lastRetrievedAt && (
-                        <span className="locker-timestamp">
-                          Last retrieved: {formatTimestamp(locker.lastRetrievedAt)}
-                        </span>
-                      )}
-                    </li>
-                  );
-                })}
+                {group.map((locker) => (
+                  <li key={locker.id} className={`locker-tile ${locker.available ? "available" : "occupied"}`}>
+                    <span className="locker-id">{locker.id}</span>
+                    <span className="locker-status">{locker.available ? "Available" : "Occupied"}</span>
+                    {showOccupantDetails && !locker.available && locker.pickupCode && (
+                      <span className="locker-pickup-code">
+                        PIN: <strong>{locker.pickupCode}</strong>
+                      </span>
+                    )}
+                    {showOccupantDetails && !locker.available && locker.storedAt && (
+                      <span className="locker-timestamp">Stored: {formatTimestamp(locker.storedAt)}</span>
+                    )}
+                    {showOccupantDetails && locker.available && locker.lastRetrievedAt && (
+                      <span className="locker-timestamp">
+                        Last retrieved: {formatTimestamp(locker.lastRetrievedAt)}
+                      </span>
+                    )}
+                  </li>
+                ))}
               </ul>
             </div>
           );

@@ -1,9 +1,18 @@
+import type { Size } from "./size.js";
+
 export interface PricingConfig {
   /** Fee per day for the first tier (X in the tiered pricing rule). */
   ratePerDay: number;
 }
 
-export const DEFAULT_PRICING: PricingConfig = { ratePerDay: 10 };
+/** Per-zone pricing: each locker size/zone has its own daily rate. */
+export type PricingTable = Record<Size, PricingConfig>;
+
+export const DEFAULT_PRICING: PricingTable = {
+  SMALL: { ratePerDay: 10 },
+  MEDIUM: { ratePerDay: 15 },
+  LARGE: { ratePerDay: 20 },
+};
 
 const TIER_SIZE_DAYS = 5;
 
@@ -25,7 +34,7 @@ export function billedDays(storedAt: Date, retrievedAt: Date): number {
  * Tiered pricing: X/day for the first 5 days, 2X/day for the next 5 days,
  * 3X/day for any day beyond that.
  */
-export function calculateStorageFee(days: number, config: PricingConfig = DEFAULT_PRICING): number {
+export function calculateStorageFee(days: number, config: PricingConfig): number {
   const { ratePerDay } = config;
   let remaining = days;
   let fee = 0;

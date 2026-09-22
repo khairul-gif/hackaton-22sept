@@ -1,4 +1,5 @@
 export type Size = "SMALL" | "MEDIUM" | "LARGE";
+export type TicketType = "ADULT" | "CHILD" | "OKU";
 
 export interface LockerView {
   id: string;
@@ -12,6 +13,40 @@ export interface LockerView {
   lastRetrievedAt?: string;
 }
 
+export interface Zone {
+  size: Size;
+  label: string;
+  ratePerDay: number;
+}
+
+export interface TicketTypeInfo {
+  type: TicketType;
+  label: string;
+  price: number;
+}
+
+export interface TicketLineItem {
+  type: TicketType;
+  quantity: number;
+  unitPrice: number;
+}
+
+export interface Ticket {
+  id: string;
+  lineItems: TicketLineItem[];
+  entryPrice: number;
+  purchasedAt: string;
+}
+
+export interface TicketSummary {
+  id: string;
+  lineItems: TicketLineItem[];
+  entryPrice: number;
+  purchasedAt: string;
+  lockerCharges: number;
+  total: number;
+}
+
 export interface StoreSuccess {
   lockerId: string;
   pickupCode: string;
@@ -23,6 +58,8 @@ export interface RetrieveSuccess {
   size: Size;
   daysStored: number;
   feeCharged: number;
+  ticketId: string;
+  ticketTotal: number;
 }
 
 export class ApiError extends Error {
@@ -59,8 +96,24 @@ export function createLocker(size: Size): Promise<LockerView> {
   return request("/lockers", { method: "POST", body: JSON.stringify({ size }) });
 }
 
-export function storePackage(size: Size): Promise<StoreSuccess> {
-  return request("/packages", { method: "POST", body: JSON.stringify({ size }) });
+export function listZones(): Promise<Zone[]> {
+  return request("/zones");
+}
+
+export function listTicketTypes(): Promise<TicketTypeInfo[]> {
+  return request("/ticket-types");
+}
+
+export function purchaseTicket(quantities: Record<TicketType, number>): Promise<Ticket> {
+  return request("/tickets", { method: "POST", body: JSON.stringify(quantities) });
+}
+
+export function getTicketSummary(ticketId: string): Promise<TicketSummary> {
+  return request(`/tickets/${ticketId}`);
+}
+
+export function createLockerRental(ticketId: string, size: Size): Promise<StoreSuccess> {
+  return request("/locker-rentals", { method: "POST", body: JSON.stringify({ ticketId, size }) });
 }
 
 export function retrievePackage(lockerId: string, pickupCode: string): Promise<RetrieveSuccess> {

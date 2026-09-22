@@ -30,6 +30,7 @@ describe("InMemoryLockerRepository", () => {
         lockerId: "s1",
         pickupCode: "ABC123",
         storedAt: new Date(),
+        ticketId: "t1",
       });
       expect(repo.findAvailableLockers("SMALL")).toEqual([]);
     });
@@ -44,6 +45,7 @@ describe("InMemoryLockerRepository", () => {
         lockerId: "s1",
         pickupCode: "ABC123",
         storedAt: new Date(),
+        ticketId: "t1",
       });
 
       repo.release("s1", new Date());
@@ -60,6 +62,7 @@ describe("InMemoryLockerRepository", () => {
         lockerId: "s1",
         pickupCode: "ABC123",
         storedAt: new Date("2026-01-01T00:00:00Z"),
+        ticketId: "t1",
       });
 
       const retrievedAt = new Date("2026-01-02T00:00:00Z");
@@ -82,6 +85,7 @@ describe("InMemoryLockerRepository", () => {
         lockerId: "s1",
         pickupCode: "ABC123",
         storedAt,
+        ticketId: "t1",
       });
 
       const [view] = repo.listLockers();
@@ -108,6 +112,7 @@ describe("InMemoryLockerRepository", () => {
         lockerId: "s1",
         pickupCode: "ZZ9999",
         storedAt: new Date(),
+        ticketId: "t1",
       });
 
       expect(repo.isPickupCodeInUse("ZZ9999")).toBe(true);
@@ -115,6 +120,46 @@ describe("InMemoryLockerRepository", () => {
       repo.release("s1", new Date());
 
       expect(repo.isPickupCodeInUse("ZZ9999")).toBe(false);
+    });
+  });
+
+  describe("tickets", () => {
+    it("stores and retrieves a ticket", () => {
+      const purchasedAt = new Date("2026-01-01T00:00:00Z");
+      const ticket = repo.createTicket({
+        id: "t1",
+        lineItems: [{ type: "ADULT", quantity: 1, unitPrice: 25 }],
+        entryPrice: 25,
+        purchasedAt,
+      });
+
+      expect(ticket).toEqual({
+        id: "t1",
+        lineItems: [{ type: "ADULT", quantity: 1, unitPrice: 25 }],
+        entryPrice: 25,
+        purchasedAt,
+      });
+      expect(repo.getTicket("t1")).toEqual(ticket);
+    });
+
+    it("returns undefined for an unknown ticket", () => {
+      expect(repo.getTicket("nope")).toBeUndefined();
+    });
+
+    it("accumulates charges against a ticket", () => {
+      repo.createTicket({
+        id: "t1",
+        lineItems: [{ type: "ADULT", quantity: 1, unitPrice: 25 }],
+        entryPrice: 25,
+        purchasedAt: new Date(),
+      });
+
+      expect(repo.getTicketCharges("t1")).toBe(0);
+
+      repo.chargeTicket("t1", 10);
+      repo.chargeTicket("t1", 15);
+
+      expect(repo.getTicketCharges("t1")).toBe(25);
     });
   });
 });

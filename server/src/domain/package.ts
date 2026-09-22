@@ -7,4 +7,6 @@ export interface Package {
   lockerId: string;
   pickupCode: string;
   storedAt: Date;
+  /** The ticket this locker rental was billed against. */
+  ticketId: string;
 }
