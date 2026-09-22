@@ -1,7 +1,11 @@
 import { useState } from "react";
 import { ApiError, retrievePackage, type RetrieveSuccess } from "../api";
 
-export function RetrievePanel() {
+interface Props {
+  onChanged?: () => void;
+}
+
+export function RetrievePanel({ onChanged }: Props = {}) {
   const [lockerId, setLockerId] = useState("");
   const [pickupCode, setPickupCode] = useState("");
   const [result, setResult] = useState<RetrieveSuccess | null>(null);
@@ -15,6 +19,7 @@ export function RetrievePanel() {
     try {
       const res = await retrievePackage(lockerId.trim(), pickupCode.trim());
       setResult(res);
+      onChanged?.();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to retrieve package.");
     } finally {

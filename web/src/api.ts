@@ -36,6 +36,7 @@ export interface Ticket {
   lineItems: TicketLineItem[];
   entryPrice: number;
   purchasedAt: string;
+  email?: string;
 }
 
 export interface TicketSummary {
@@ -47,9 +48,16 @@ export interface TicketSummary {
   total: number;
 }
 
+export interface DemoLocker {
+  lockerId: string;
+  pickupCode: string;
+}
+
 export interface StoreSuccess {
   lockerId: string;
   pickupCode: string;
+  /** A second locker auto-occupied for trying the reopen flow without another checkout. */
+  demoLocker: DemoLocker | null;
 }
 
 export interface RetrieveSuccess {
@@ -104,8 +112,11 @@ export function listTicketTypes(): Promise<TicketTypeInfo[]> {
   return request("/ticket-types");
 }
 
-export function purchaseTicket(quantities: Record<TicketType, number>): Promise<Ticket> {
-  return request("/tickets", { method: "POST", body: JSON.stringify(quantities) });
+export function purchaseTicket(quantities: Record<TicketType, number>, email?: string): Promise<Ticket> {
+  return request("/tickets", {
+    method: "POST",
+    body: JSON.stringify(email ? { ...quantities, email } : quantities),
+  });
 }
 
 export function getTicketSummary(ticketId: string): Promise<TicketSummary> {

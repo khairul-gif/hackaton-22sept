@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useKiosk } from "../kiosk/KioskContext";
 
 export function ReceiptPage() {
@@ -41,6 +41,20 @@ export function ReceiptPage() {
         Store your belongings and close the door. Keep the locker id and PIN — you'll need both to reopen it later
         (a {selectedZone.ratePerDay}/day storage fee applies and is billed to this ticket at pickup).
       </p>
+
+      {ticket.email && (
+        <p className="muted">
+          A copy of this receipt was sent to <strong>{ticket.email}</strong>.
+        </p>
+      )}
+
+      {rental.demoLocker && (
+        <p className="muted">
+          Demo: locker <strong>{rental.demoLocker.lockerId}</strong> is already occupied with PIN{" "}
+          <strong>{rental.demoLocker.pickupCode}</strong> — try the reopen flow on <Link to="/admin">/admin</Link>{" "}
+          without buying a ticket yourself.
+        </p>
+      )}
 
       <div className="field-row">
         <button onClick={reset}>New visitor</button>

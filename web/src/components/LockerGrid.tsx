@@ -1,8 +1,10 @@
-import type { LockerView, Size } from "../api";
+import type { LockerView, Size, Zone } from "../api";
 
 interface Props {
   lockers: LockerView[];
   loading: boolean;
+  /** Zone labels/rates to head each group with (falls back to the raw size if omitted). */
+  zones?: Zone[];
   /** Show each occupied locker's PIN/timestamps. Off on the visitor-facing /locker page. */
   showOccupantDetails?: boolean;
 }
@@ -13,7 +15,7 @@ function formatTimestamp(iso: string): string {
   return new Date(iso).toLocaleString();
 }
 
-export function LockerGrid({ lockers, loading, showOccupantDetails = true }: Props) {
+export function LockerGrid({ lockers, loading, zones = [], showOccupantDetails = true }: Props) {
   const totalAvailable = lockers.filter((l) => l.available).length;
 
   return (
@@ -36,11 +38,12 @@ export function LockerGrid({ lockers, loading, showOccupantDetails = true }: Pro
           const group = lockers.filter((l) => l.size === size);
           if (group.length === 0) return null;
           const available = group.filter((l) => l.available).length;
+          const zoneLabel = zones.find((z) => z.size === size)?.label ?? size;
 
           return (
             <div key={size} className="locker-size-group">
               <div className="locker-size-group-header">
-                <span className="locker-size">{size}</span>
+                <span className="locker-size">{zoneLabel}</span>
                 <span className="locker-count muted">
                   {available}/{group.length} available
                 </span>

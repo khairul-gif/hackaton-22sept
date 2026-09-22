@@ -47,7 +47,7 @@ export function LockerPage() {
         <div className="field-row" style={{ flexDirection: "column", alignItems: "stretch" }}>
           {zones.map((zone) => (
             <button key={zone.size} onClick={() => selectZone(zone)}>
-              {zone.label} ({zone.size}) — {zone.ratePerDay}/day
+              {zone.label} — {zone.ratePerDay}/day
             </button>
           ))}
         </div>
@@ -57,7 +57,7 @@ export function LockerPage() {
         </div>
       </div>
 
-      <LockerGrid lockers={lockers} loading={loading} showOccupantDetails={false} />
+      <LockerGrid lockers={lockers} loading={loading} zones={zones} showOccupantDetails={false} />
     </div>
   );
 }

@@ -28,6 +28,7 @@ export function KioskLayout() {
   const [ticketTypes, setTicketTypes] = useState<TicketTypeInfo[]>([]);
   const [zones, setZones] = useState<Zone[]>([]);
   const [quantities, setQuantities] = useState<Record<TicketType, number>>(EMPTY_QUANTITIES);
+  const [email, setEmail] = useState("");
   const [selectedZone, setSelectedZone] = useState<Zone | null>(null);
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [rental, setRental] = useState<StoreSuccess | null>(null);
@@ -69,7 +70,7 @@ export function KioskLayout() {
     setError(null);
     setBusy(true);
     try {
-      const newTicket = await purchaseTicket(quantities);
+      const newTicket = await purchaseTicket(quantities, email.trim() || undefined);
       const result = await createLockerRental(newTicket.id, selectedZone.size);
       setTicket(newTicket);
       setRental(result);
@@ -83,6 +84,7 @@ export function KioskLayout() {
 
   function reset() {
     setQuantities(EMPTY_QUANTITIES);
+    setEmail("");
     setSelectedZone(null);
     setTicket(null);
     setRental(null);
@@ -96,6 +98,7 @@ export function KioskLayout() {
         ticketTypes,
         zones,
         quantities,
+        email,
         selectedZone,
         ticket,
         rental,
@@ -103,6 +106,7 @@ export function KioskLayout() {
         error,
         loadError,
         setQuantity,
+        setEmail,
         selectZone,
         pay,
         reset,

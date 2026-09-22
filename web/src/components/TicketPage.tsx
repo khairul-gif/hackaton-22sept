@@ -3,7 +3,7 @@ import { useKiosk } from "../kiosk/KioskContext";
 
 export function TicketPage() {
   const navigate = useNavigate();
-  const { ticketTypes, quantities, setQuantity, loadError, retryLoad } = useKiosk();
+  const { ticketTypes, quantities, setQuantity, email, setEmail, loadError, retryLoad } = useKiosk();
 
   const total = ticketTypes.reduce((sum, t) => sum + quantities[t.type] * t.price, 0);
   const ticketCount = ticketTypes.reduce((sum, t) => sum + quantities[t.type], 0);
@@ -43,6 +43,18 @@ export function TicketPage() {
           {ticketCount} ticket{ticketCount === 1 ? "" : "s"} — subtotal: <strong>{total}</strong>
         </p>
       )}
+
+      <div className="field-row">
+        <label>
+          Email (optional — for a receipt)
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+          />
+        </label>
+      </div>
 
       <div className="field-row">
         <button onClick={() => navigate("/")}>Cancel</button>

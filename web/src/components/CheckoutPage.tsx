@@ -18,6 +18,8 @@ export function CheckoutPage() {
 
   const lines = ticketTypes.filter((t) => quantities[t.type] > 0);
   const entryTotal = lines.reduce((sum, t) => sum + quantities[t.type] * t.price, 0);
+  const lockerEstimate = selectedZone.ratePerDay;
+  const total = entryTotal + lockerEstimate;
 
   return (
     <div className="kiosk-page">
@@ -31,12 +33,13 @@ export function CheckoutPage() {
           </li>
         ))}
         <li>
-          {selectedZone.label} ({selectedZone.size}) locker — {selectedZone.ratePerDay}/day, billed when you pick up
+          {selectedZone.label} locker — {lockerEstimate}/day = {lockerEstimate}
         </li>
       </ul>
 
       <p className="muted">
-        Due now (entry tickets only — locker fee is billed at pickup): <strong>{entryTotal}</strong>
+        Total due now: <strong>{total}</strong>. Locker rate is an estimate for one day — the actual fee is billed
+        at pickup and may be higher if kept longer (tiered by day).
       </p>
 
       <div className="field-row">

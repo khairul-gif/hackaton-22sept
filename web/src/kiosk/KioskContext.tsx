@@ -5,6 +5,8 @@ export interface KioskContextValue {
   ticketTypes: TicketTypeInfo[];
   zones: Zone[];
   quantities: Record<TicketType, number>;
+  /** Optional -- when set, a receipt email is sent once the locker rental succeeds. */
+  email: string;
   selectedZone: Zone | null;
   ticket: Ticket | null;
   rental: StoreSuccess | null;
@@ -13,6 +15,7 @@ export interface KioskContextValue {
   /** Set when ticket types / zones failed to load (e.g. the API server is unreachable). */
   loadError: string | null;
   setQuantity: (type: TicketType, quantity: number) => void;
+  setEmail: (email: string) => void;
   selectZone: (zone: Zone) => void;
   pay: () => Promise<void>;
   reset: () => void;
