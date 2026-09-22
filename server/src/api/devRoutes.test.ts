@@ -46,19 +46,22 @@ describe("dev clock routes", () => {
     const bank = new LockerBank({
       repository: new InMemoryLockerRepository(),
       clock,
-      pricing: { ratePerDay: 10 },
+      pricing: { SMALL: { ratePerDay: 10 }, MEDIUM: { ratePerDay: 10 }, LARGE: { ratePerDay: 10 } },
     });
     const app = createServer(bank, { devClock: clock });
 
     const lockerRes = await request(app).post("/lockers").send({ size: "SMALL" });
-    const storeRes = await request(app).post("/packages").send({ size: "SMALL" });
+    const ticketRes = await request(app).post("/tickets").send({ ADULT: 1 });
+    const rentalRes = await request(app)
+      .post("/locker-rentals")
+      .send({ size: "SMALL", ticketId: ticketRes.body.id });
 
     // Jump 6 days forward, entirely through the same HTTP interface a demo would use.
     await request(app).post("/dev/clock/advance").send({ hours: 24 * 6 });
 
     const pickupRes = await request(app)
       .post("/pickups")
-      .send({ lockerId: lockerRes.body.id, pickupCode: storeRes.body.pickupCode });
+      .send({ lockerId: lockerRes.body.id, pickupCode: rentalRes.body.pickupCode });
 
     expect(pickupRes.status).toBe(200);
     expect(pickupRes.body.daysStored).toBe(6);
