@@ -1,12 +1,16 @@
 # Locker UI
 
-Minimal React + TypeScript frontend for the locker system, driven entirely
-by the REST API in `../server`. Three panels on one page:
+React + TypeScript frontend for the Amusement Park Smart Locker system,
+driven entirely by the REST API in `../server`. Client-side routed
+(react-router) — each step is its own page rather than a single panel:
 
-- **Lockers** — live availability grid
-- **Delivery Agent** — create lockers, store a package, see the pickup code
-- **Customer** — retrieve a package with locker ID + pickup code, see the
-  storage fee
+- **`/`** — landing page, "Start" into the visitor flow
+- **`/tickets`** — buy Adult/Child/OKU tickets (pick a quantity per type)
+- **`/locker`** — choose a locker zone; shows live availability
+- **`/payment`** — review the order and pay (simulated checkout)
+- **`/receipt`** — confirms payment, shows the locker ID + PIN
+- **`/admin`** — operator view: seed lockers, reopen a locker with its
+  PIN (not part of the visitor flow)
 
 ## Running
 
