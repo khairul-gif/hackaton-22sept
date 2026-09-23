@@ -47,10 +47,17 @@ export function RetrievePanel({ onChanged }: Props = {}) {
         </button>
       </div>
 
-      {result && (
+      {result?.status === "opened" && (
         <p className="success">
-          Locker opened. Stored for {result.daysStored} day{result.daysStored === 1 ? "" : "s"} — storage fee:{" "}
-          <strong>{result.feeCharged}</strong>. Ticket {result.ticketId} total due: <strong>{result.ticketTotal}</strong>
+          Locker <strong>{result.lockerId}</strong> is open. It's still yours for the rest of the day — the same PIN
+          reopens it as often as you like until the park closes at 7pm.
+        </p>
+      )}
+      {result?.status === "retrieved" && (
+        <p className="success">
+          Locker emptied and returned. Stored for {result.daysStored} day{result.daysStored === 1 ? "" : "s"} —
+          storage fee: <strong>{result.feeCharged}</strong>. Ticket {result.ticketId} total due:{" "}
+          <strong>{result.ticketTotal}</strong>
         </p>
       )}
       {error && <p className="error">{error}</p>}

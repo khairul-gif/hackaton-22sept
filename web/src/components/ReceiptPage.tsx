@@ -38,8 +38,9 @@ export function ReceiptPage() {
         {selectedZone.label} locker <strong>{rental.lockerId}</strong> is open — PIN: <strong>{rental.pickupCode}</strong>
       </p>
       <p className="muted">
-        Store your belongings and close the door. Keep the locker id and PIN — you'll need both to reopen it later
-        (a {selectedZone.ratePerDay}/day storage fee applies and is billed to this ticket at pickup).
+        Store your belongings and close the door. The same locker id and PIN reopen it as many times as you like
+        during the day — the locker stays yours until the park closes at 7pm, when it's emptied and the{" "}
+        {selectedZone.ratePerDay}/day storage fee is billed to this ticket.
       </p>
 
       {ticket.email && (

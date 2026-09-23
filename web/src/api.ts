@@ -60,7 +60,15 @@ export interface StoreSuccess {
   demoLocker: DemoLocker | null;
 }
 
-export interface RetrieveSuccess {
+/** Correct PIN while the park is still open: the door opens, the locker stays rented. */
+export interface LockerOpened {
+  status: "opened";
+  lockerId: string;
+}
+
+/** Correct PIN at/after closing time: belongings out, locker freed, fee billed. */
+export interface LockerRetrieved {
+  status: "retrieved";
   lockerId: string;
   packageId: string;
   size: Size;
@@ -69,6 +77,8 @@ export interface RetrieveSuccess {
   ticketId: string;
   ticketTotal: number;
 }
+
+export type RetrieveSuccess = LockerOpened | LockerRetrieved;
 
 export class ApiError extends Error {
   status: number;

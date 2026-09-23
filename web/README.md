@@ -1,8 +1,9 @@
 # Locker UI
 
-React + TypeScript frontend for the Amusement Park Smart Locker system,
-driven entirely by the REST API in `../server`. Client-side routed
-(react-router) — each step is its own page rather than a single panel:
+React + TypeScript frontend for the Amusement eTicketing and Smart Locker
+Solution, driven entirely by the REST API in `../server`. Client-side
+routed (react-router) — each step is its own page rather than a single
+panel:
 
 - **`/`** — landing page, "Start" into the visitor flow
 - **`/tickets`** — buy Adult/Child/OKU tickets (pick a quantity per type)

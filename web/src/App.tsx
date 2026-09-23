@@ -12,7 +12,7 @@ function App() {
   return (
     <div className="app">
       <header>
-        <h1>Amusement Park Smart Locker</h1>
+        <h1>Amusement eTicketing and Smart Locker Solution</h1>
       </header>
 
       <Routes>
