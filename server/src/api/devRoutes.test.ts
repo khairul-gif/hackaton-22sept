@@ -47,6 +47,7 @@ describe("dev clock routes", () => {
       repository: new InMemoryLockerRepository(),
       clock,
       pricing: { SMALL: { ratePerDay: 10 }, MEDIUM: { ratePerDay: 10 }, LARGE: { ratePerDay: 10 } },
+      closingHour: 0,
     });
     const app = createServer(bank, { devClock: clock });
 

@@ -10,7 +10,9 @@ describe("locker, ticket and locker-rental routes", () => {
   let app: Express;
 
   beforeEach(() => {
-    const bank = new LockerBank({ repository: new InMemoryLockerRepository() });
+    // closingHour 0 => every correct PIN finalizes the rental immediately,
+    // which is what these endpoint tests assert on.
+    const bank = new LockerBank({ repository: new InMemoryLockerRepository(), closingHour: 0 });
     app = createServer(bank);
   });
 
@@ -338,6 +340,7 @@ describe("storage fee (Level 3)", () => {
       repository: new InMemoryLockerRepository(),
       clock,
       pricing: { SMALL: { ratePerDay: 10 }, MEDIUM: { ratePerDay: 10 }, LARGE: { ratePerDay: 10 } },
+      closingHour: 0,
     });
     const app = createServer(bank);
 
@@ -357,6 +360,61 @@ describe("storage fee (Level 3)", () => {
     expect(res.body.daysStored).toBe(6);
     // 5 days @ 10 + 1 day @ 20
     expect(res.body.feeCharged).toBe(70);
+  });
+});
+
+describe("POST /pickups open/reopen until closing time", () => {
+  function buildApp(startHourUtc: number) {
+    const clock = new FakeClock(new Date(`2026-01-01T${String(startHourUtc).padStart(2, "0")}:00:00Z`));
+    const bank = new LockerBank({
+      repository: new InMemoryLockerRepository(),
+      clock,
+      pricing: { SMALL: { ratePerDay: 10 }, MEDIUM: { ratePerDay: 10 }, LARGE: { ratePerDay: 10 } },
+      closingHour: 19,
+    });
+    return { app: createServer(bank), clock };
+  }
+
+  async function rent(app: ReturnType<typeof createServer>) {
+    await request(app).post("/lockers").send({ size: "SMALL" });
+    const ticketRes = await request(app).post("/tickets").send({ ADULT: 1 });
+    const rentalRes = await request(app)
+      .post("/locker-rentals")
+      .send({ size: "SMALL", ticketId: ticketRes.body.id });
+    return { lockerId: rentalRes.body.lockerId as string, pickupCode: rentalRes.body.pickupCode as string };
+  }
+
+  it("reports opened (not retrieved) and keeps the locker occupied during the day", async () => {
+    const { app } = buildApp(9);
+    const { lockerId, pickupCode } = await rent(app);
+
+    const res = await request(app).post("/pickups").send({ lockerId, pickupCode });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ status: "opened", lockerId });
+
+    const listRes = await request(app).get("/lockers");
+    expect(listRes.body.find((l: { id: string }) => l.id === lockerId).available).toBe(false);
+  });
+
+  it("accepts the same PIN repeatedly, then finalizes after closing time", async () => {
+    const { app, clock } = buildApp(9);
+    const { lockerId, pickupCode } = await rent(app);
+
+    const first = await request(app).post("/pickups").send({ lockerId, pickupCode });
+    const second = await request(app).post("/pickups").send({ lockerId, pickupCode });
+    expect(first.body.status).toBe("opened");
+    expect(second.body.status).toBe("opened");
+
+    clock.advanceHours(10); // 19:00 -- park closed
+    const final = await request(app).post("/pickups").send({ lockerId, pickupCode });
+
+    expect(final.status).toBe(200);
+    expect(final.body.status).toBe("retrieved");
+    expect(final.body.feeCharged).toBe(10);
+
+    const listRes = await request(app).get("/lockers");
+    expect(listRes.body.find((l: { id: string }) => l.id === lockerId).available).toBe(true);
   });
 });
 

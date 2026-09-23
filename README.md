@@ -1,4 +1,4 @@
-# Amusement Park Smart Locker
+# Amusement eTicketing and Smart Locker Solution
 
 A demo of a self-service locker system for an amusement park, where a
 visitor buys entry tickets, rents a storage locker for the day, and pays

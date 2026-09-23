@@ -5,7 +5,7 @@ import { LockerBank } from "../domain/lockerBank.js";
 import { InMemoryLockerRepository } from "../repository/lockerRepository.js";
 
 function buildApp() {
-  const bank = new LockerBank({ repository: new InMemoryLockerRepository() });
+  const bank = new LockerBank({ repository: new InMemoryLockerRepository(), closingHour: 0 });
   return createServer(bank);
 }
 

@@ -1,8 +1,8 @@
 # Locker Server
 
-Express + TypeScript API for the Amusement Park Smart Locker system:
-buy a park ticket, choose a locker zone, pay, and get a PIN to open your
-locker.
+Express + TypeScript API for the Amusement eTicketing and Smart Locker
+Solution: buy a park ticket, choose a locker zone, pay, and get a PIN to
+open your locker.
 
 ## Running
 

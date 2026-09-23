@@ -13,12 +13,18 @@ import type { TicketType } from "./ticketType.js";
 import { DEFAULT_TICKET_PRICING, TICKET_TYPES } from "./ticketType.js";
 import type { LockerRepository } from "../repository/lockerRepository.js";
 
+/** Park closing time (UTC hour). Lockers stay rented — and their PIN keeps working — until then. */
+export const DEFAULT_CLOSING_HOUR = 19;
+
 export type StoreResult =
   | { status: "stored"; lockerId: string; pickupCode: string }
   | { status: "no_locker_available" }
   | { status: "ticket_not_found" };
 
 export type RetrieveResult =
+  /** Correct PIN while the park is still open: the door opens but the locker stays rented. */
+  | { status: "opened"; lockerId: string }
+  /** Correct PIN at or after closing time: belongings come out, locker is freed and the fee is billed. */
   | { status: "retrieved"; package: Package; daysStored: number; feeCharged: number; ticketTotal: number }
   | { status: "locker_not_found" }
   | { status: "locker_empty" }
@@ -41,6 +47,13 @@ export interface LockerBankOptions {
   pricing?: PricingTable;
   /** Per-ticket-type admission price. */
   ticketPricing?: Record<TicketType, number>;
+  /**
+   * Hour of day (UTC, 0-23) the park closes. Before it, a correct PIN just
+   * opens the door and the locker stays rented for the rest of the day; at
+   * or after it, opening the locker ends the rental and bills the fee.
+   * Defaults to 19 (7pm). Pass 0 to always finalize on the first open.
+   */
+  closingHour?: number;
 }
 
 /**
@@ -56,6 +69,7 @@ export class LockerBank {
   private readonly generateTicketId: IdGenerator;
   private readonly pricing: PricingTable;
   private readonly ticketPricing: Record<TicketType, number>;
+  private readonly closingHour: number;
   private readonly allocationLock = new Mutex();
 
   // Demo convenience only (see ensureDemoLocker): tracks the one locker kept
@@ -72,6 +86,7 @@ export class LockerBank {
     this.generateTicketId = options.ticketIdGenerator ?? randomId;
     this.pricing = options.pricing ?? DEFAULT_PRICING;
     this.ticketPricing = options.ticketPricing ?? DEFAULT_TICKET_PRICING;
+    this.closingHour = options.closingHour ?? DEFAULT_CLOSING_HOUR;
   }
 
   createLocker(size: Size): LockerView {
@@ -139,6 +154,12 @@ export class LockerBank {
     });
   }
 
+  /**
+   * Opens a locker with its PIN. While the park is open the same PIN can be
+   * used as often as the visitor likes — the locker stays theirs for the day.
+   * At or after closing time, opening it ends the rental: the locker is
+   * freed for the next day and the storage fee is billed to the ticket.
+   */
   async retrievePackage(lockerId: string, pickupCode: string): Promise<RetrieveResult> {
     const locker = this.repository.getLocker(lockerId);
     if (!locker) {
@@ -155,6 +176,10 @@ export class LockerBank {
     }
 
     const retrievedAt = this.clock.now();
+    if (retrievedAt.getUTCHours() < this.closingHour) {
+      return { status: "opened", lockerId };
+    }
+
     const daysStored = billedDays(pkg.storedAt, retrievedAt);
     const feeCharged = calculateStorageFee(daysStored, this.pricing[pkg.size]);
 

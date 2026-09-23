@@ -61,7 +61,7 @@ export function createSmtpMailer(): Mailer | null {
       await transporter.sendMail({
         from,
         to: input.to,
-        subject: `Your Amusement Park ticket & locker receipt (${input.ticketId})`,
+        subject: `Your Amusement eTicketing & Smart Locker receipt (${input.ticketId})`,
         text: renderReceiptText(input),
       });
     },

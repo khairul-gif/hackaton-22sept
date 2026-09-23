@@ -12,7 +12,10 @@ describe("LockerBank", () => {
 
   beforeEach(() => {
     repository = new InMemoryLockerRepository();
-    bank = new LockerBank({ repository });
+    // closingHour 0 => opening a locker always finalizes the rental, the
+    // behaviour most of these tests were written against. The open/reopen
+    // window is covered separately below.
+    bank = new LockerBank({ repository, closingHour: 0 });
     ticketId = bank.purchaseTicket(ONE_ADULT).id;
   });
 
@@ -181,6 +184,7 @@ describe("LockerBank", () => {
         repository: timedRepository,
         clock,
         pricing: { SMALL: { ratePerDay: 10 }, MEDIUM: { ratePerDay: 10 }, LARGE: { ratePerDay: 10 } },
+        closingHour: 0,
       });
       const timedTicketId = timedBank.purchaseTicket(ONE_ADULT).id;
 
@@ -208,6 +212,7 @@ describe("LockerBank", () => {
         repository: timedRepository,
         clock,
         pricing: { SMALL: { ratePerDay: 10 }, MEDIUM: { ratePerDay: 10 }, LARGE: { ratePerDay: 10 } },
+        closingHour: 0,
       });
       const timedTicketId = timedBank.purchaseTicket(ONE_ADULT).id;
 
@@ -282,5 +287,84 @@ describe("LockerBank", () => {
       expect(second!.lockerId).toBe(first!.lockerId);
       expect(second!.pickupCode).not.toBe(first!.pickupCode);
     });
+  });
+});
+
+describe("LockerBank open/reopen until closing time", () => {
+  const CLOSING_HOUR = 19; // 7pm
+
+  /** Starts the clock mid-morning, well before the park closes. */
+  function buildBank(startHourUtc: number) {
+    const clock = new FakeClock(new Date(`2026-01-01T${String(startHourUtc).padStart(2, "0")}:00:00Z`));
+    const repository = new InMemoryLockerRepository();
+    const bank = new LockerBank({
+      repository,
+      clock,
+      pricing: { SMALL: { ratePerDay: 10 }, MEDIUM: { ratePerDay: 10 }, LARGE: { ratePerDay: 10 } },
+      closingHour: CLOSING_HOUR,
+    });
+    const ticketId = bank.purchaseTicket(ONE_ADULT).id;
+    return { bank, clock, ticketId };
+  }
+
+  async function rentALocker(bank: LockerBank, ticketId: string) {
+    const locker = bank.createLocker("SMALL");
+    const stored = await bank.storePackage("SMALL", ticketId);
+    if (stored.status !== "stored") throw new Error("setup failed");
+    return { lockerId: locker.id, pickupCode: stored.pickupCode };
+  }
+
+  it("opens without ending the rental while the park is open", async () => {
+    const { bank, ticketId } = buildBank(9);
+    const { lockerId, pickupCode } = await rentALocker(bank, ticketId);
+
+    const result = await bank.retrievePackage(lockerId, pickupCode);
+
+    expect(result).toEqual({ status: "opened", lockerId });
+    expect(bank.listLockers().find((l) => l.id === lockerId)?.available).toBe(false);
+  });
+
+  it("accepts the same PIN over and over through the day", async () => {
+    const { bank, clock, ticketId } = buildBank(9);
+    const { lockerId, pickupCode } = await rentALocker(bank, ticketId);
+
+    for (let i = 0; i < 4; i++) {
+      const result = await bank.retrievePackage(lockerId, pickupCode);
+      expect(result.status).toBe("opened");
+      clock.advanceHours(2);
+    }
+  });
+
+  it("bills nothing to the ticket while the locker is only being opened", async () => {
+    const { bank, ticketId } = buildBank(9);
+    const { lockerId, pickupCode } = await rentALocker(bank, ticketId);
+
+    await bank.retrievePackage(lockerId, pickupCode);
+
+    expect(bank.getTicketSummary(ticketId)!.lockerCharges).toBe(0);
+  });
+
+  it("ends the rental and bills the fee once the park has closed", async () => {
+    const { bank, clock, ticketId } = buildBank(9);
+    const { lockerId, pickupCode } = await rentALocker(bank, ticketId);
+
+    await bank.retrievePackage(lockerId, pickupCode); // mid-day open
+    clock.advanceHours(CLOSING_HOUR - 9); // now 19:00 — park closed
+
+    const result = await bank.retrievePackage(lockerId, pickupCode);
+
+    expect(result.status).toBe("retrieved");
+    if (result.status === "retrieved") {
+      expect(result.feeCharged).toBe(10); // one billed day
+    }
+    expect(bank.listLockers().find((l) => l.id === lockerId)?.available).toBe(true);
+    expect(bank.getTicketSummary(ticketId)!.lockerCharges).toBe(10);
+  });
+
+  it("still rejects a wrong PIN while the park is open", async () => {
+    const { bank, ticketId } = buildBank(9);
+    const { lockerId } = await rentALocker(bank, ticketId);
+
+    expect(await bank.retrievePackage(lockerId, "WRONGC")).toEqual({ status: "invalid_code" });
   });
 });

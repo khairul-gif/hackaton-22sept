@@ -142,8 +142,12 @@ export function createLockerRoutes(bank: LockerBank, mailer?: Mailer): Router {
     const result = await bank.retrievePackage(lockerId, pickupCode);
 
     switch (result.status) {
+      case "opened":
+        res.status(200).json({ status: "opened", lockerId });
+        return;
       case "retrieved":
         res.status(200).json({
+          status: "retrieved",
           lockerId,
           packageId: result.package.id,
           size: result.package.size,

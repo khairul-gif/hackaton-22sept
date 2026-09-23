@@ -5,7 +5,7 @@ import { InMemoryLockerRepository } from "../repository/lockerRepository.js";
 describe("LockerBank concurrency (Level 4)", () => {
   it("assigns each locker to exactly one of many simultaneous requests", async () => {
     const repository = new InMemoryLockerRepository();
-    const bank = new LockerBank({ repository });
+    const bank = new LockerBank({ repository, closingHour: 0 });
     const ticketId = bank.purchaseTicket({ ADULT: 1, CHILD: 0, OKU: 0 }).id;
 
     const lockerCount = 5;
@@ -39,7 +39,7 @@ describe("LockerBank concurrency (Level 4)", () => {
 
   it("leaves lockers available again for a second wave after the first wave fills them", async () => {
     const repository = new InMemoryLockerRepository();
-    const bank = new LockerBank({ repository });
+    const bank = new LockerBank({ repository, closingHour: 0 });
     const ticketId = bank.purchaseTicket({ ADULT: 1, CHILD: 0, OKU: 0 }).id;
 
     for (let i = 0; i < 3; i++) {
